@@ -1,0 +1,10 @@
+com\quickrewind\ClipboardHelper.class
+com\quickrewind\SimpleSettingsDialog.class
+com\quickrewind\SystemTrayManager.class
+com\quickrewind\ScreenCapture.class
+com\quickrewind\HotkeyManager.class
+com\quickrewind\QuickRewind.class
+com\quickrewind\SimpleGifEncoder.class
+com\quickrewind\SystemTrayManager$1.class
+com\quickrewind\PngSequenceEncoder.class
+com\quickrewind\Config.class
