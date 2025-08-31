@@ -1,9 +1,15 @@
 package com.quickrewind;
 
-import javax.swing.*;
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.AWTException;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.MenuItem;
+import java.awt.PopupMenu;
+import java.awt.RenderingHints;
+import java.awt.SystemTray;
+import java.awt.TrayIcon;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -28,15 +34,22 @@ public class SystemTrayManager {
         Image trayImage = createTrayIcon(false);
         
         PopupMenu popup = new PopupMenu();
-        MenuItem captureItem = new MenuItem("Capture GIF");
+        MenuItem captureItem = new MenuItem("Capture GIF (Buffer)");
+        MenuItem startRecordingItem = new MenuItem("Start Recording");
+        MenuItem stopRecordingItem = new MenuItem("Stop Recording");
         MenuItem settingsItem = new MenuItem("Settings");
         MenuItem exitItem = new MenuItem("Exit");
         
         captureItem.addActionListener(e -> mainApp.captureGif());
+        startRecordingItem.addActionListener(e -> mainApp.startActiveRecording());
+        stopRecordingItem.addActionListener(e -> mainApp.stopActiveRecording());
         settingsItem.addActionListener(e -> mainApp.showSettings());
         exitItem.addActionListener(e -> mainApp.exit());
         
         popup.add(captureItem);
+        popup.addSeparator();
+        popup.add(startRecordingItem);
+        popup.add(stopRecordingItem);
         popup.addSeparator();
         popup.add(settingsItem);
         popup.addSeparator();
@@ -69,8 +82,15 @@ public class SystemTrayManager {
         Graphics2D g2d = image.createGraphics();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
-        // Background circle
-        g2d.setColor(recording ? Color.RED : Color.GREEN);
+        // Background circle - red for recording, orange for active recording, green for ready
+        Color backgroundColor;
+        if (recording) {
+            backgroundColor = Color.RED; // Active recording
+        } else {
+            backgroundColor = Color.GREEN; // Ready/buffer mode
+        }
+        
+        g2d.setColor(backgroundColor);
         g2d.fillOval(2, 2, size - 4, size - 4);
         
         // Border
@@ -78,7 +98,7 @@ public class SystemTrayManager {
         g2d.setStroke(new BasicStroke(1));
         g2d.drawOval(2, 2, size - 4, size - 4);
         
-        // Recording indicator (small white circle)
+        // Recording indicator (small white circle) when actively recording
         if (recording) {
             g2d.setColor(Color.WHITE);
             g2d.fillOval(6, 6, 4, 4);
@@ -94,8 +114,8 @@ public class SystemTrayManager {
             trayIcon.setImage(createTrayIcon(recording));
             
             String tooltip = recording ? 
-                "QuickRewind - Recording..." : 
-                "QuickRewind - Ready";
+                "QuickRewind - Active Recording..." : 
+                "QuickRewind - Ready (Buffer Active)";
             trayIcon.setToolTip(tooltip);
         }
     }

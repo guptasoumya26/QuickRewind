@@ -13,12 +13,16 @@ public class Config {
     private String outputFolder;
     private int bufferSeconds;
     private String hotkeyCombo;
+    private int activeRecordingFPS;
+    private int maxRecordingMinutes;
     
     public Config() {
         // Default values
         this.outputFolder = System.getProperty("user.home") + File.separator + "QuickRewind";
         this.bufferSeconds = 30;
         this.hotkeyCombo = "Ctrl+Shift+G";
+        this.activeRecordingFPS = 10;
+        this.maxRecordingMinutes = 10;
     }
     
     public String getOutputFolder() {
@@ -43,6 +47,22 @@ public class Config {
     
     public void setHotkeyCombo(String hotkeyCombo) {
         this.hotkeyCombo = hotkeyCombo;
+    }
+    
+    public int getActiveRecordingFPS() {
+        return activeRecordingFPS;
+    }
+    
+    public void setActiveRecordingFPS(int activeRecordingFPS) {
+        this.activeRecordingFPS = Math.max(5, Math.min(30, activeRecordingFPS)); // Clamp between 5-30 FPS
+    }
+    
+    public int getMaxRecordingMinutes() {
+        return maxRecordingMinutes;
+    }
+    
+    public void setMaxRecordingMinutes(int maxRecordingMinutes) {
+        this.maxRecordingMinutes = Math.max(1, Math.min(15, maxRecordingMinutes)); // Clamp between 1-15 minutes
     }
     
     public static Config load() {

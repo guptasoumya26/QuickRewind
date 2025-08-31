@@ -17,6 +17,9 @@ public class SimpleGifEncoder {
             throw new IllegalArgumentException("No frames to encode");
         }
         
+        // Optimize for long recordings by reducing frame count if needed
+        List<BufferedImage> optimizedFrames = optimizeFramesForLongRecordings(frames, delayMs);
+        
         // Get GIF writer
         ImageWriter writer = null;
         java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("gif");
@@ -32,10 +35,10 @@ public class SimpleGifEncoder {
             writer.setOutput(ios);
             writer.prepareWriteSequence(null);
             
-            System.out.println("Creating GIF with " + frames.size() + " frames...");
+            System.out.println("Creating GIF with " + optimizedFrames.size() + " frames (original: " + frames.size() + ")...");
             
-            for (int i = 0; i < frames.size(); i++) {
-                BufferedImage frame = frames.get(i);
+            for (int i = 0; i < optimizedFrames.size(); i++) {
+                BufferedImage frame = optimizedFrames.get(i);
                 
                 // Convert to indexed color for better GIF compatibility
                 BufferedImage indexedFrame = convertToIndexedColor(frame);
@@ -47,7 +50,7 @@ public class SimpleGifEncoder {
                 writer.writeToSequence(new IIOImage(indexedFrame, null, metadata), null);
                 
                 if (i % 10 == 0) {
-                    System.out.println("Written frame " + (i + 1) + "/" + frames.size());
+                    System.out.println("Written frame " + (i + 1) + "/" + optimizedFrames.size());
                 }
             }
             
@@ -128,5 +131,30 @@ public class SimpleGifEncoder {
         if (bytes < 1024) return bytes + " B";
         if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
         return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
+    }
+    
+    private static List<BufferedImage> optimizeFramesForLongRecordings(List<BufferedImage> frames, int delayMs) {
+        // If recording is too long or has too many frames, reduce frame count for better performance
+        int maxFramesForGif = 300; // Maximum frames for reasonable GIF size
+        
+        if (frames.size() <= maxFramesForGif) {
+            return frames; // No optimization needed
+        }
+        
+        System.out.println("Optimizing " + frames.size() + " frames to " + maxFramesForGif + " frames for better performance");
+        
+        // Calculate the step size to sample frames evenly
+        double step = (double) frames.size() / maxFramesForGif;
+        java.util.List<BufferedImage> optimizedFrames = new java.util.ArrayList<>();
+        
+        for (int i = 0; i < maxFramesForGif; i++) {
+            int frameIndex = (int) Math.round(i * step);
+            if (frameIndex >= frames.size()) {
+                frameIndex = frames.size() - 1;
+            }
+            optimizedFrames.add(frames.get(frameIndex));
+        }
+        
+        return optimizedFrames;
     }
 }

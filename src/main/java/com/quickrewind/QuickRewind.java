@@ -18,12 +18,12 @@ public class QuickRewind {
     private SimpleSettingsDialog settingsDialog;
     
     public QuickRewind() {
-        // Set system look and feel (commented out due to compilation issue)
-        // try {
-        //     UIManager.setLookAndFeel(UIManager.getSystemLookAndFeel());
-        // } catch (Exception e) {
-        //     System.err.println("Failed to set system look and feel: " + e.getMessage());
-        // }
+  
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            System.err.println("Failed to set system look and feel: " + e.getMessage());
+        }
         
         // Check if system tray is supported
         if (!SystemTray.isSupported()) {
@@ -75,6 +75,10 @@ public class QuickRewind {
     }
     
     public void captureGif() {
+        captureGifFromBuffer();
+    }
+    
+    public void captureGifFromBuffer() {
         CompletableFuture.runAsync(() -> {
             try {
                 // Get current frames from buffer
@@ -88,57 +92,7 @@ public class QuickRewind {
                     return;
                 }
                 
-                // Generate filename with timestamp
-                String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-                String filename = "quickrewind-" + timestamp + ".gif";
-                File outputFile = new File(config.getOutputFolder(), filename);
-                
-                System.out.println("Saving GIF to: " + outputFile.getAbsolutePath());
-                
-                // Show processing notification
-                SwingUtilities.invokeLater(() -> 
-                    trayManager.showNotification("Processing...", 
-                        "Creating optimized GIF from " + frames.length + " frames", 
-                        TrayIcon.MessageType.INFO));
-                
-                // Try multiple encoding options with fallbacks
-                List<BufferedImage> frameList = Arrays.asList(frames);
-                
-                try {
-                    // First try: Java ImageIO GIF encoder
-                    SimpleGifEncoder.encodeGif(frameList, outputFile, 500);
-                } catch (Exception gifError) {
-                    System.err.println("GIF encoding failed: " + gifError.getMessage());
-                    
-                    try {
-                        // Second try: PNG sequence
-                        PngSequenceEncoder.encodePngSequence(frameList, outputFile);
-                        SwingUtilities.invokeLater(() -> 
-                            trayManager.showNotification("Created PNG Sequence", 
-                                "GIF failed, saved as PNG sequence instead", 
-                                TrayIcon.MessageType.WARNING));
-                        return;
-                    } catch (Exception pngError) {
-                        System.err.println("PNG sequence failed: " + pngError.getMessage());
-                        
-                        // Last resort: Single PNG screenshot
-                        PngSequenceEncoder.encodeSinglePng(frameList, outputFile);
-                        SwingUtilities.invokeLater(() -> 
-                            trayManager.showNotification("Saved Screenshot", 
-                                "Animation failed, saved last frame as PNG", 
-                                TrayIcon.MessageType.WARNING));
-                        return;
-                    }
-                }
-                
-                // Copy markdown link to clipboard
-                ClipboardHelper.copyMarkdownLink(outputFile);
-                
-                // Show success notification
-                SwingUtilities.invokeLater(() -> 
-                    trayManager.showNotification("GIF Saved!", 
-                        "Saved: " + filename + "\nMarkdown link copied to clipboard", 
-                        TrayIcon.MessageType.INFO));
+                processAndSaveGif(frames, "buffer", 500);
                         
             } catch (Exception e) {
                 e.printStackTrace();
@@ -148,6 +102,127 @@ public class QuickRewind {
                         TrayIcon.MessageType.ERROR));
             }
         });
+    }
+    
+    public void startActiveRecording() {
+        if (screenCapture.isActiveRecording()) {
+            trayManager.showNotification("Already Recording", 
+                "Active recording is already in progress", 
+                TrayIcon.MessageType.WARNING);
+            return;
+        }
+        
+        screenCapture.startActiveRecording();
+        trayManager.updateRecordingStatus(true);
+        trayManager.showNotification("Recording Started", 
+            "Active recording started. Click 'Stop Recording' to save.", 
+            TrayIcon.MessageType.INFO);
+    }
+    
+    public void stopActiveRecording() {
+        if (!screenCapture.isActiveRecording()) {
+            trayManager.showNotification("No Active Recording", 
+                "No active recording in progress", 
+                TrayIcon.MessageType.WARNING);
+            return;
+        }
+        
+        CompletableFuture.runAsync(() -> {
+            try {
+                // Get frames from active recording
+                BufferedImage[] frames = screenCapture.getActiveRecordingFrames();
+                long duration = screenCapture.getActiveRecordingDuration();
+                
+                // Stop the recording
+                screenCapture.stopActiveRecording();
+                trayManager.updateRecordingStatus(false);
+                
+                if (frames.length == 0) {
+                    SwingUtilities.invokeLater(() -> 
+                        trayManager.showNotification("Recording Failed", 
+                            "No frames captured during recording", 
+                            TrayIcon.MessageType.WARNING));
+                    return;
+                }
+                
+                // Calculate appropriate delay based on recording duration
+                int delayMs = Math.max(100, (int)(duration / frames.length));
+                delayMs = Math.min(delayMs, 1000); // Cap at 1 second per frame
+                
+                processAndSaveGif(frames, "recording", delayMs);
+                screenCapture.clearActiveRecordingFrames(); // Clean up memory
+                        
+            } catch (Exception e) {
+                e.printStackTrace();
+                SwingUtilities.invokeLater(() -> 
+                    trayManager.showNotification("Recording Failed", 
+                        "Error saving recording: " + e.getMessage(), 
+                        TrayIcon.MessageType.ERROR));
+            }
+        });
+    }
+    
+    private void processAndSaveGif(BufferedImage[] frames, String prefix, int delayMs) {
+        try {
+            // Generate filename with timestamp
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+            String filename = "quickrewind-" + prefix + "-" + timestamp + ".gif";
+            File outputFile = new File(config.getOutputFolder(), filename);
+            
+            System.out.println("Saving GIF to: " + outputFile.getAbsolutePath());
+            
+            // Show processing notification
+            SwingUtilities.invokeLater(() -> 
+                trayManager.showNotification("Processing...", 
+                    "Creating optimized GIF from " + frames.length + " frames", 
+                    TrayIcon.MessageType.INFO));
+            
+            // Try multiple encoding options with fallbacks
+            List<BufferedImage> frameList = Arrays.asList(frames);
+            
+            try {
+                // First try: Java ImageIO GIF encoder
+                SimpleGifEncoder.encodeGif(frameList, outputFile, delayMs);
+            } catch (Exception gifError) {
+                System.err.println("GIF encoding failed: " + gifError.getMessage());
+                
+                try {
+                    // Second try: PNG sequence
+                    PngSequenceEncoder.encodePngSequence(frameList, outputFile);
+                    SwingUtilities.invokeLater(() -> 
+                        trayManager.showNotification("Created PNG Sequence", 
+                            "GIF failed, saved as PNG sequence instead", 
+                            TrayIcon.MessageType.WARNING));
+                    return;
+                } catch (Exception pngError) {
+                    System.err.println("PNG sequence failed: " + pngError.getMessage());
+                    
+                    // Last resort: Single PNG screenshot
+                    PngSequenceEncoder.encodeSinglePng(frameList, outputFile);
+                    SwingUtilities.invokeLater(() -> 
+                        trayManager.showNotification("Saved Screenshot", 
+                            "Animation failed, saved last frame as PNG", 
+                            TrayIcon.MessageType.WARNING));
+                    return;
+                }
+            }
+            
+            // Copy markdown link to clipboard
+            ClipboardHelper.copyMarkdownLink(outputFile);
+            
+            // Show success notification
+            SwingUtilities.invokeLater(() -> 
+                trayManager.showNotification("GIF Saved!", 
+                    "Saved: " + filename + "\nMarkdown link copied to clipboard", 
+                    TrayIcon.MessageType.INFO));
+                    
+        } catch (Exception e) {
+            e.printStackTrace();
+            SwingUtilities.invokeLater(() -> 
+                trayManager.showNotification("Save Failed", 
+                    "Error saving GIF: " + e.getMessage(), 
+                    TrayIcon.MessageType.ERROR));
+        }
     }
     
     public void showSettings() {
